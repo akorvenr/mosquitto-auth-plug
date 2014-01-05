@@ -4,6 +4,7 @@ This is a plugin to authenticate and authorize [Mosquitto] users from one
 of several distinct back-ends:
 
 * MySQL
+* PostgreSQL
 * CDB
 * SQLite3 database
 * [Redis] key/value store
@@ -15,12 +16,12 @@ This plugin can perform authentication (check username / password)
 and authorization (ACL). Currently not all back-ends have the same capabilities
 (the the section on the back-end you're interested in).
 
-| Capability                 | mysql | redis | cdb   | sqlite | psk |
-| -------------------------- | :---: | :---: | :---: | :---:  | :-: |
-| authentication             |   Y   |   Y   |   Y   |   Y    |  Y  |
-| superusers                 |   Y   |       |       |        |  2  |
-| acl checking               |   Y   |   1   |   1   |   1    |  2  |
-| static superusers          |   Y   |   Y   |   Y   |   Y    |  2  |
+| Capability                 | mysql | pgsql | redis | cdb   | sqlite | psk |
+| -------------------------- | :---: | :---: | :---: | :---: | :---:  | :-: |
+| authentication             |   Y   |   Y   |   Y   |   Y   |   Y    |  Y  |
+| superusers                 |   Y   |   Y   |       |       |        |  2  |
+| acl checking               |   Y   |   Y   |   1   |   1   |   1    |  2  |
+| static superusers          |   Y   |   Y   |   Y   |   Y   |   Y    |  2  |
 
  1. Currently not implemented; back-end returns TRUE
  2. Dependent on the database used by PSK
@@ -207,6 +208,23 @@ the beginning of the line indicating a _superuser_)
 	loc/test                                 PERMIT
 	$SYS/broker/log/N                        PERMIT
 ```
+
+### PostgreSQL
+
+The 'pgsql' back-end is straigh port from 'mysql' back-end.
+Query config has small differences compared to mysql since postgres differences..
+
+| Option         | default           |  Mandatory  | Meaning               |
+| -------------- | ----------------- | :---------: | --------------------- |
+| host           |                   |             | hostname/address
+| port           |                   |             | TCP port
+| user           |                   |             | username
+| pass           |                   |             | password
+| dbname         |                   |     Y       | database name
+| userquery      |                   |     Y       | SQL for users
+| superquery     |                   |             | SQL for superusers
+| aclquery       |                   |             | SQL for ACLs
+
 
 ### CDB
 
