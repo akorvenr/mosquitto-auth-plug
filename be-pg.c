@@ -40,12 +40,8 @@
 
 struct pg_backend {
         PGconn *pg;
-	char *host;
-	int port;
-        char *conninfo;
-	char *dbname;
-	char *user;
-	char *pass;
+        const char **connkeywords;
+        const char **connvalues;
         char *userquery;        // MUST return 1 row, 1 column
         char *superquery;       // MUST return 1 row, 1 column, [0, 1]
         char *aclquery;         // MAY return n rows, 1 column, string
@@ -54,22 +50,19 @@ struct pg_backend {
 void *be_pg_init()
 {
 	struct pg_backend *conf;
-	char *host, *user, *pass, *dbname, *p;
+	char *host, *user, *pass, *dbname, *port;
 	char *userquery;
-	int port;
+	int kw = 0;
 
 	_log(LOG_DEBUG, "}}}} PG");
 
+
 	host		= p_stab("host");
-	p		= p_stab("port");
+	port		= p_stab("port");
 	user		= p_stab("user");
 	pass		= p_stab("pass");
 	dbname		= p_stab("dbname");
-
-	host = (host) ? host : strdup("localhost");
-	port = (!p) ? 5432 : atoi(p);
-
-	userquery = p_stab("userquery");
+	userquery	= p_stab("userquery");
 
 	if (!userquery) {
 		_fatal("Mandatory option 'userquery' is missing");
@@ -79,20 +72,40 @@ void *be_pg_init()
 	if ((conf = (struct pg_backend *)malloc(sizeof(struct pg_backend))) == NULL)
 		return (NULL);
 
-	conf->host		= host;
-	conf->port		= port;
-	conf->user		= user;
-	conf->pass		= pass;
-	conf->dbname		= dbname;
+        conf->connvalues = malloc(6 * sizeof(conf->connvalues));
+        conf->connkeywords = malloc(6 * sizeof(conf->connkeywords));
+
+        conf->connvalues[kw] = dbname;
+        conf->connkeywords[kw] = "dbname";
+        kw++;
+
+        if (host != NULL) {
+                conf->connvalues[kw] = host;
+                conf->connkeywords[kw] = "host";
+                kw++;
+        }
+        if (port != NULL) {
+                conf->connvalues[kw] = port;
+                conf->connkeywords[kw] = "port";
+                kw++;
+        }
+        if (user != NULL) {
+                conf->connvalues[kw] = user;
+                conf->connkeywords[kw] = "user";
+                kw++;
+        }
+        if (pass != NULL) {
+                conf->connvalues[kw] = pass;
+                conf->connkeywords[kw] = "password";
+                kw++;
+        }
+        
 	conf->userquery		= userquery;
 	conf->superquery	= p_stab("superquery");
 	conf->aclquery		= p_stab("aclquery");
 
-        //sprintf(conninfo, "dbname = %s" , conf->dbname);
-
-	conf->conninfo          = "dbname = mosquitto"; //conninfo;
-
-	if (!(conf->pg = PQconnectdb(conf->conninfo))) {
+	conf->pg = PQconnectdbParams(conf->connkeywords, conf->connvalues, 0);
+	if (PQstatus(conf->pg) != CONNECTION_OK) {
 		fprintf(stderr, "%s\n", PQerrorMessage(conf->pg));
 		PQfinish(conf->pg);
 		free(conf);
@@ -115,6 +128,10 @@ void be_pg_destroy(void *handle)
 			free(conf->superquery);
 		if (conf->aclquery)
 			free(conf->aclquery);
+                if (conf->connvalues)
+                        free(conf->connvalues);
+                if (conf->connkeywords)
+                        free(conf->connkeywords);
 		free(conf);
 	}
 }
@@ -124,10 +141,7 @@ static char *escape(void *handle, const char *value, long *vlen)
         struct pg_backend *conf = (struct pg_backend *)handle;
         char *v;
 
-        //*vlen = strlen(value) * 2 + 1;
-        //if ((v = malloc(*vlen)) == NULL)
-        //        return (NULL);
-
+        *vlen = strlen(value) * 2 + 1;
         v = PQescapeLiteral(conf->pg, value, strlen(value));
 
         return (v);
