@@ -6,7 +6,7 @@
 #	BE_PG
 
 BACKENDS=-DBE_PSK -DBE_CDB -DBE_MYSQL -DBE_SQLITE -DBE_REDIS -DBE_PG
-BACKENDS=-DBE_MYSQL -DBE_PG
+BACKENDS=-DBE_MYSQL -DBE_PG -DBE_CDB
 
 BE_CFLAGS=`mysql_config --cflags`
 BE_LDFLAGS=`mysql_config --libs`
@@ -14,7 +14,7 @@ BE_DEPS=
 
 # Flags for PostgreSQL
 BE_CFLAGS += -I`pg_config --includedir` 
-BE_LDFLAGS += -L`pg_config --libdir`
+BE_LDFLAGS += -L`pg_config --libdir` -lpq
 
 CDBDIR=contrib/tinycdb-0.78
 CDB=$(CDBDIR)/cdb

@@ -51,16 +51,6 @@ struct pg_backend {
         char *aclquery;         // MAY return n rows, 1 column, string
 };
 
-void *setup_conninfo(void *handle) {
-        struct pg_backend *conf = (struct pg_backend *)handle;
-        char *dbinfo = NULL;
-
-        sprintf(dbinfo, "dbname = %s" , conf->dbname);
-
-        free(conf);
-        return dbinfo;
-}
-
 void *be_pg_init()
 {
 	struct pg_backend *conf;
@@ -97,7 +87,10 @@ void *be_pg_init()
 	conf->userquery		= userquery;
 	conf->superquery	= p_stab("superquery");
 	conf->aclquery		= p_stab("aclquery");
-	conf->conninfo          = setup_conninfo(conf);
+
+        //sprintf(conninfo, "dbname = %s" , conf->dbname);
+
+	conf->conninfo          = "dbname = mosquitto"; //conninfo;
 
 	if (!(conf->pg = PQconnectdb(conf->conninfo))) {
 		fprintf(stderr, "%s\n", PQerrorMessage(conf->pg));
@@ -131,10 +124,12 @@ static char *escape(void *handle, const char *value, long *vlen)
         struct pg_backend *conf = (struct pg_backend *)handle;
         char *v;
 
-        *vlen = strlen(value) * 2 + 1;
-        if ((v = malloc(*vlen)) == NULL)
-                return (NULL);
-        PQescapeStringConn(conf->pg, v, value, strlen(value), NULL);
+        //*vlen = strlen(value) * 2 + 1;
+        //if ((v = malloc(*vlen)) == NULL)
+        //        return (NULL);
+
+        v = PQescapeLiteral(conf->pg, value, strlen(value));
+
         return (v);
 }
 
@@ -147,16 +142,18 @@ char *be_pg_getuser(void *handle, const char *username)
 
 	if (!conf || !conf->userquery || !username || !*username)
 		return (NULL);
-        
-        if ((u = escape(conf->pg, username, &ulen)) == NULL);
+
+        if ((u = escape(conf, username, &ulen)) == NULL) {
 		return (NULL);
+        }
 
 	if ((query = malloc(strlen(conf->userquery) + ulen + 128)) == NULL) {
-		free(u);
+		PQfreemem(u);
 		return (NULL);
 	}
+
 	sprintf(query, conf->userquery, u);
-	free(u);
+	PQfreemem(u);
 
 	// DEBUG puts(query);
 
@@ -164,21 +161,22 @@ char *be_pg_getuser(void *handle, const char *username)
 
 	/* Command OK, but no data (No such user) */
 	if (PQresultStatus(res) == PGRES_COMMAND_OK) {
-	        // DEBUG fprintf(stdout, "No such user %s", username)
+	        fprintf(stdout, "No such user %s", username);
 	        goto out;
 	}
+
 	if (PQresultStatus(res) != PGRES_TUPLES_OK ) {
 		fprintf(stderr, "%s\n", PQerrorMessage(conf->pg));
 		goto out;
 	}
 
 	if ((nrows = PQntuples(res)) != 1) {
-		// DEBUG fprintf(stderr, "rowcount = %ld; not ok\n", nrows);
+		fprintf(stderr, "rowcount = %ld; not ok\n", nrows);
 		goto out;
 	}
 
 	if (PQnfields(res) != 1) {
-		// DEBUG fprintf(stderr, "numfields not ok\n");
+		fprintf(stderr, "numfields not ok\n");
 		goto out;
 	}
 
@@ -187,7 +185,6 @@ char *be_pg_getuser(void *handle, const char *username)
 	}
 
 	value = (v) ? strdup(v) : NULL;
-
 
    out:
 
@@ -217,11 +214,11 @@ int be_pg_superuser(void *handle, const char *username)
 		return (FALSE);
 
 	if ((query = malloc(strlen(conf->superquery) + ulen + 128)) == NULL) {
-		free(u);
+		PQfreemem(u);
 		return (FALSE);
 	}
 	sprintf(query, conf->superquery, u);
-	free(u);
+	PQfreemem(u);
 
 	// puts(query);
 
@@ -269,32 +266,31 @@ int be_pg_superuser(void *handle, const char *username)
  *	for subscriptions (READ) (1)
  *	for publish (WRITE) (2)
  *
- * SELECT topic FROM table WHERE username = '%s' AND (acc & %d)		// may user SUB or PUB topic?
- * SELECT topic FROM table WHERE username = '%s'              		// ignore ACC
+ * SELECT topic FROM table WHERE username = %s AND (acc & %d)		// may user SUB or PUB topic?
+ * SELECT topic FROM table WHERE username = %s              		// ignore ACC
  */
 
 int be_pg_aclcheck(void *handle, const char *username, const char *topic, int acc)
 {
 	struct pg_backend *conf = (struct pg_backend *)handle;
-	char *query = NULL, *u = NULL, *v, *data;
+	char *query = NULL, *u = NULL, *v;
 	long ulen;
 	int match = 0;
 	bool bf;
 	PGresult *res = NULL;
 
-
 	if (!conf || !conf->aclquery)
 		return (FALSE);
 
-        if ((u = escape(conf->pg, username, &ulen)) == NULL);
+        if ((u = escape(conf, username, &ulen)) == NULL)
 		return (FALSE);
 
 	if ((query = malloc(strlen(conf->aclquery) + ulen + 128)) == NULL) {
-		free(u);
+		PQfreemem(u);
 		return (FALSE);
 	}
 	sprintf(query, conf->aclquery, u, acc);
-	free(u);
+	PQfreemem(u);
 
 	_log(LOG_DEBUG, "SQL: %s", query);
 
@@ -310,8 +306,8 @@ int be_pg_aclcheck(void *handle, const char *username, const char *topic, int ac
 	}
 
         int row = 0;
-	while (match == 0 && (data = PQgetvalue(res, row, 0)) != NULL) {
-		if (data != NULL) {
+	while (match == 0 && (v = PQgetvalue(res, row, 0)) != NULL) {
+		if (v != NULL) {
 
 			/* Check mosquitto_match_topic. If true,
 			 * if true, set match and break out of loop. */
