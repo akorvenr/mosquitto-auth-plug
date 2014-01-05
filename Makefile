@@ -3,13 +3,18 @@
 #	BE_MYSQL
 #	BE_SQLITE
 #	BE_REDIS
+#	BE_PG
 
-BACKENDS=-DBE_PSK -DBE_CDB -DBE_MYSQL -DBE_SQLITE -DBE_REDIS
-BACKENDS=-DBE_MYSQL 
+BACKENDS=-DBE_PSK -DBE_CDB -DBE_MYSQL -DBE_SQLITE -DBE_REDIS -DBE_PG
+BACKENDS=-DBE_MYSQL -DBE_PG
 
-BE_CFLAGS=`mysql_config --cflags` 
+BE_CFLAGS=`mysql_config --cflags`
 BE_LDFLAGS=`mysql_config --libs`
 BE_DEPS=
+
+# Flags for PostgreSQL
+BE_CFLAGS += -I`pg_config --includedir` 
+BE_LDFLAGS += -L`pg_config --libdir`
 
 CDBDIR=contrib/tinycdb-0.78
 CDB=$(CDBDIR)/cdb
@@ -21,8 +26,8 @@ BE_DEPS += $(CDBLIB)
 
 BE_LDFLAGS += -lsqlite3
 
-BE_CFLAGS += -I/usr/local/include/hiredis
-BE_LDFLAGS += -L/usr/local/lib -lhiredis
+BE_CFLAGS += -I/usr/include/hiredis
+BE_LDFLAGS += -L/usr/lib -lhiredis
 
 OPENSSLDIR=/usr/local/stow/openssl-1.0.0c/
 OSSLINC=-I$(OPENSSLDIR)/include
@@ -30,15 +35,15 @@ OSSLIBS=-L$(OPENSSLDIR)/lib -lcrypto
 
 
 
-CFLAGS = -I../../../../pubgit/MQTT/mosquitto/src/
-CFLAGS += -I../../../../pubgit/MQTT/mosquitto/lib/
+CFLAGS = -I../mosquitto-1.2.3/src/
+CFLAGS += -I../mosquitto-1.2.3/lib/
 CFLAGS += -fPIC -Wall -Werror $(BACKENDS) $(BE_CFLAGS) -I$(MOSQ)/src -DDEBUG=1 $(OSSLINC)
 LDFLAGS=$(BE_LDFLAGS) -lmosquitto $(OSSLIBS)
-LDFLAGS += -L../../../../pubgit/MQTT/mosquitto/lib
+LDFLAGS += -L../mosquitto-1.2.3/lib
 # LDFLAGS += -Wl,-rpath,$(../../../../pubgit/MQTT/mosquitto/lib) -lc
 # LDFLAGS += -export-dynamic
 
-OBJS=auth-plug.o base64.o pbkdf2-check.o log.o hash.o be-psk.o be-cdb.o be-mysql.o be-sqlite.o be-redis.o
+OBJS=auth-plug.o base64.o pbkdf2-check.o log.o hash.o be-psk.o be-cdb.o be-mysql.o be-pg.o be-sqlite.o be-redis.o
 
 all: auth-plug.so np 
 
@@ -52,6 +57,7 @@ be-psk.o: be-psk.c be-psk.h Makefile
 be-cdb.o: be-cdb.c be-cdb.h Makefile
 be-mysql.o: be-mysql.c be-mysql.h Makefile
 be-sqlite.o: be-sqlite.c be-sqlite.h Makefile
+be-pg.o: be-pg.c be-pg.h Makefile
 pbkdf2-check.o: pbkdf2-check.c base64.h Makefile
 base64.o: base64.c base64.h Makefile
 log.o: log.c log.h Makefile
