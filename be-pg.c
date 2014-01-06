@@ -158,6 +158,13 @@ char *be_pg_getuser(void *handle, const char *username)
 	if (!conf || !conf->userquery || !username || !*username)
 		return (NULL);
 
+        /* Recover connection to SQL server in case of communication failure */ 
+        if (PQstatus(conf->pg) != CONNECTION_OK) {
+                _log(LOG_DEBUG, PQerrorMessage(conf->pg));
+                _log(LOG_DEBUG, "SQL reconnecting");
+                PQreset(conf->pg);
+        }
+
         if ((u = escape(conf, username, &ulen)) == NULL) {
 		return (NULL);
         }
@@ -224,6 +231,13 @@ int be_pg_superuser(void *handle, const char *username)
 
 	if (!conf || !conf->superquery)
 		return (FALSE);
+
+        /* Recover connection to SQL server in case of communication failure */ 
+        if (PQstatus(conf->pg) != CONNECTION_OK) {
+                _log(LOG_DEBUG, PQerrorMessage(conf->pg));
+                _log(LOG_DEBUG, "SQL reconnecting");
+                PQreset(conf->pg);
+        }
 
 	if ((u = escape(conf, username, &ulen)) == NULL)
 		return (FALSE);
@@ -296,6 +310,13 @@ int be_pg_aclcheck(void *handle, const char *username, const char *topic, int ac
 
 	if (!conf || !conf->aclquery)
 		return (FALSE);
+
+        /* Recover connection to SQL server in case of communication failure */ 
+        if (PQstatus(conf->pg) != CONNECTION_OK) {
+                _log(LOG_DEBUG, PQerrorMessage(conf->pg));
+                _log(LOG_DEBUG, "SQL reconnecting");
+                PQreset(conf->pg);
+        }
 
         if ((u = escape(conf, username, &ulen)) == NULL)
 		return (FALSE);
